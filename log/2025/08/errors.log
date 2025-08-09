@@ -1,0 +1,39 @@
+[2025-08-08 02:54:01] Fehler: Warnung: CSV-Datei nicht gefunden: /Users/noah/Documents/praxis/DEV/LocalAnonymizer/patients.csv. Fallback ohne CSV aktiviert.
+Request-Text: 
+------------------------------------------------------------
+[2025-08-08 03:02:47] Fehler: Warnung: CSV-Datei nicht gefunden: /Users/noah/Documents/praxis/DEV/LocalAnonymizer/patients.csv. Fallback ohne CSV aktiviert.
+Request-Text: 
+------------------------------------------------------------
+[2025-08-08 03:07:20] Fehler: Kein API-Key (vollständig) konfiguriert
+Request-Text: DEV-MODE gestartet
+------------------------------------------------------------
+[2025-08-08 03:07:43] Fehler: Kein API-Key (vollständig) konfiguriert
+Request-Text: DEV-MODE gestartet
+------------------------------------------------------------
+[2025-08-08 03:09:44] Fehler: 'Anonymizer' object has no attribute '_generate_placeholder'
+Request-Text: Patientin Erika Mustermann hat eine Frage zu ihrem Termin. Sie ist unter erika@mail.de erreichbar. Dr. Schmidt wird sie zurückrufen.
+------------------------------------------------------------
+[2025-08-08 03:11:27] Fehler: Kein API-Key (vollständig) konfiguriert
+Request-Text: DEV-MODE gestartet
+------------------------------------------------------------
+[2025-08-08 03:11:37] Fehler: Kein API-Key gesetzt - > im DEV_MODE gestartet
+Request-Text: Patientin Erika Mustermann hat eine Frage zu ihrem Termin. Sie ist unter erika@mail.de erreichbar. Dr. Schmidt wird sie zurückrufen.
+------------------------------------------------------------
+[2025-08-08 03:20:43] Fehler: Kein API-Key (vollständig) konfiguriert
+Request-Text: DEV-MODE gestartet
+------------------------------------------------------------
+[2025-08-08 03:21:19] Fehler: Kein API-Key (vollständig) konfiguriert
+Request-Text: DEV-MODE gestartet
+------------------------------------------------------------
+[2025-08-08 03:28:33] Fehler: Kein API-Key (vollständig) konfiguriert
+Request-Text: DEV-MODE gestartet
+------------------------------------------------------------
+[2025-08-08 03:30:18] Fehler: Kein API-Key (vollständig) konfiguriert
+Request-Text: DEV-MODE gestartet
+------------------------------------------------------------
+[2025-08-08 03:32:22] Fehler: Kein API-Key gesetzt - > im DEV_MODE gestartet
+Request-Text: Sehr geehrter Herr Ludescher, danke für die Anfrage. Sie haben eine Frage zu ihrem Termin. Sie ist unter noah.lud@gmail.com erreichbar. Richtig? Dr. Heddäus wird sie zurückrufen.
+------------------------------------------------------------
+[2025-08-08 03:39:51] Fehler: Kein API-Key (vollständig) konfiguriert
+Request-Text: DEV-MODE gestartet
+------------------------------------------------------------
