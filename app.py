@@ -101,6 +101,14 @@ def highlight_pii_in_text(original_text: str, mapping: Dict[str, str]) -> str:
 
 # ----------------- Anonymisierer -----------------
 class Anonymizer:
+    """
+    Diese Klasse kümmert sich um die Anonymisierung von Text.
+    Für eine zuverlässige Trennung von Vor- und Nachnamen ist es entscheidend,
+    dass die 'patients.csv'-Datei eine Liste von bekannten Vornamen enthält.
+    Jeder Vorname sollte in der CSV-Datei der Kategorie 'Vorname' zugeordnet sein.
+    Beispielzeile in patients.csv:
+    Monika,Vorname
+    """
     def __init__(self, csv_path: str):
         try:
             self.nlp = spacy.load("de_core_news_lg")
@@ -172,8 +180,8 @@ class Anonymizer:
                         idx = text.find(value, start)
                         if idx == -1:
                             break
-                        # Vornamen/Nachnamen bekommen eine höhere Priorität als andere CSV-Einträge
-                        priority = 2 if category in ["VORNAME", "NACHNAME"] else 3
+                        # Vornamen/Nachnamen bekommen eine höhere Priorität (case-insensitive)
+                        priority = 2 if category.upper() in ["VORNAME", "NACHNAME"] else 3
                         all_ents.append({
                             "start": idx, "end": idx + len(value), "value": value,
                             "category": category, "priority": priority
@@ -183,6 +191,10 @@ class Anonymizer:
         # Priorität 4: SpaCy-basierte Entitäten (am allgemeinsten)
         doc = self.nlp(text)
         for ent in doc.ents:
+            # Filter, um häufige Falscherkennungen von spaCy zu reduzieren (z.B. "Wär")
+            if len(ent.text) <= 3:
+                continue
+
             if ent.label_ in ("PER", "LOC", "ORG"):
                 all_ents.append({
                     "start": ent.start_char, "end": ent.end_char, "value": ent.text,
