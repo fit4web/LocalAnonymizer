@@ -14,6 +14,7 @@ from pathlib import Path
 import requests
 import time
 import os
+import re
 from datetime import datetime
 from colorama import Fore, Style, init
 init(autoreset=True)
@@ -106,6 +107,12 @@ class Anonymizer:
         except OSError:
             raise RuntimeError("Bitte installiere das Modell: python -m spacy download de_core_news_lg")
 
+        self.regexes = {
+            "EMAIL": r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
+            "Geburtsdatum": r'\b\d{1,2}\.\d{1,2}\.\d{4}\b',
+            "ADRESSE": r'\b[A-Za-zßäöüÄÖÜ\s\-]+\d{1,3}(?:\s?[a-zA-Z])?\s+\d{5}\s+[A-Za-zßäöüÄÖÜ\s\-]+\b'
+        }
+
         self.pii_data = {}
         self.csv_loaded = False
         try:
@@ -122,46 +129,107 @@ class Anonymizer:
             reader = csv.reader(csvfile)
             for row in reader:
                 if len(row) >= 2:
-                    value, category = row[0].strip(), row[1].strip().upper()
+                    value, category = row[0].strip(), row[1].strip()
                     pii_dict.setdefault(category, []).append(value)
         return pii_dict
 
     def _generate_placeholder(self, category: str, counters: Dict[str, int]) -> str:
-        key = category.upper()
+        key = category
         counters[key] = counters.get(key, 0) + 1
         return f"[{key}_{counters[key]}]"
 
     def anonymize(self, text: str) -> Tuple[str, Dict[str, str]]:
         mapping = {}
         placeholder_counters = {}
+        all_ents = []
 
-        ents_to_replace = []
+        # --- Schritt 1: Alle potenziellen Entitäten aus allen Quellen sammeln ---
 
-        doc = self.nlp(text)
-        for ent in doc.ents:
-            if ent.label_ in ("PER", "LOC", "ORG"):
-                placeholder = self._generate_placeholder(ent.label_, placeholder_counters)
-                ents_to_replace.append((ent.start_char, ent.end_char, placeholder, ent.text))
-                mapping[placeholder] = ent.text
+        # Priorität 1: Regex-basierte Entitäten (am spezifischsten)
+        for category, pattern in self.regexes.items():
+            for match in re.finditer(pattern, text):
+                value = match.group(0)
+                if category == "Geburtsdatum":
+                    try:
+                        date_obj = datetime.strptime(value, "%d.%m.%Y")
+                        if (datetime.now() - date_obj).days < 365:
+                            continue
+                    except ValueError:
+                        continue
 
+                all_ents.append({
+                    "start": match.start(), "end": match.end(), "value": value,
+                    "category": category, "priority": 1
+                })
+
+        # Priorität 2: CSV-basierte Entitäten (benutzerdefiniert)
         if self.csv_loaded:
             for category, values in self.pii_data.items():
-                for value in values:
+                # Lange Werte zuerst, um Teilübereinstimmungen zu vermeiden (z.B. "Meier" vor "Meierling")
+                for value in sorted(values, key=len, reverse=True):
                     start = 0
                     while True:
                         idx = text.find(value, start)
                         if idx == -1:
                             break
-                        placeholder = self._generate_placeholder(category, placeholder_counters)
-                        ents_to_replace.append((idx, idx + len(value), placeholder, value))
-                        mapping[placeholder] = value
+                        # Vornamen/Nachnamen bekommen eine höhere Priorität als andere CSV-Einträge
+                        priority = 2 if category in ["VORNAME", "NACHNAME"] else 3
+                        all_ents.append({
+                            "start": idx, "end": idx + len(value), "value": value,
+                            "category": category, "priority": priority
+                        })
                         start = idx + len(value)
 
-        # Sortiere absteigend nach Start-Position, damit Ersetzung sauber funktioniert
-        ents_to_replace = sorted(ents_to_replace, key=lambda x: x[0], reverse=True)
+        # Priorität 4: SpaCy-basierte Entitäten (am allgemeinsten)
+        doc = self.nlp(text)
+        for ent in doc.ents:
+            if ent.label_ in ("PER", "LOC", "ORG"):
+                all_ents.append({
+                    "start": ent.start_char, "end": ent.end_char, "value": ent.text,
+                    "category": ent.label_, "priority": 4
+                })
 
-        for start_idx, end_idx, placeholder, original_value in ents_to_replace:
-            text = text[:start_idx] + placeholder + text[end_idx:]
+        # --- Schritt 2: Überlappungen basierend auf Priorität auflösen ---
+
+        # Sortiere nach Startposition, dann Priorität, dann Länge (längere zuerst)
+        sorted_ents = sorted(all_ents, key=lambda x: (x['start'], x['priority'], -(x['end'] - x['start'])))
+
+        unique_ents = []
+        if sorted_ents:
+            # Iteriere durch die sortierten Entitäten und verwerfe die mit niedrigerer Priorität bei Überlappung
+            last_ent = None
+            for ent in sorted_ents:
+                # Wenn es keine letzte Entität gibt oder keine Überlappung, füge sie hinzu
+                if last_ent is None or ent['start'] >= last_ent['end']:
+                    if last_ent is not None:
+                        unique_ents.append(last_ent)
+                    last_ent = ent
+                # Bei Überlappung gewinnt die mit der höheren Priorität (bereits durch Sortierung sichergestellt)
+                # Wir tun also nichts und verwerfen die aktuelle `ent`
+
+            if last_ent is not None:
+                unique_ents.append(last_ent)
+
+        # --- Schritt 3: Text mit den finalen Entitäten ersetzen ---
+
+        # Logik zur Wiederverwendung von Platzhaltern für identische PII-Werte
+        value_to_placeholder = {}
+
+        # Absteigend nach Startposition sortieren, um den Text von hinten nach vorne zu ersetzen
+        final_ents = sorted(unique_ents, key=lambda x: x['start'], reverse=True)
+
+        for ent in final_ents:
+            value = ent['value']
+            category = ent['category']
+
+            if value in value_to_placeholder:
+                placeholder = value_to_placeholder[value]
+            else:
+                placeholder = self._generate_placeholder(category, placeholder_counters)
+                mapping[placeholder] = value
+                value_to_placeholder[value] = placeholder
+
+            text = text[:ent['start']] + placeholder + text[ent['end']:]
 
         return text, mapping
     
