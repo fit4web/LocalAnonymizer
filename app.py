@@ -188,14 +188,46 @@ class Anonymizer:
                         })
                         start = idx + len(value)
 
-        # Priorität 4: SpaCy-basierte Entitäten (am allgemeinsten)
+        # Priorität 3 (heuristische Namensaufteilung) & 4 (allgemeine SpaCy-Entitäten)
         doc = self.nlp(text)
         for ent in doc.ents:
             # Filter, um häufige Falscherkennungen von spaCy zu reduzieren (z.B. "Wär")
             if len(ent.text) <= 3:
                 continue
 
-            if ent.label_ in ("PER", "LOC", "ORG"):
+            # Heuristik zur Aufteilung von mehrteiligen Personennamen
+            if ent.label_ == "PER" and ' ' in ent.text:
+                try:
+                    parts = ent.text.rsplit(' ', 1)
+                    vorname = parts[0]
+                    nachname = parts[1]
+
+                    # Füge den Vornamen als eigene Entität hinzu
+                    vorname_start = ent.start_char
+                    vorname_end = ent.start_char + len(vorname)
+                    all_ents.append({
+                        "start": vorname_start, "end": vorname_end, "value": vorname,
+                        "category": "Vorname", "priority": 3
+                    })
+
+                    # Füge den Nachnamen als eigene Entität hinzu
+                    # Finde den Startindex des Nachnamens im Originaltext, um Whitespace-Probleme zu umgehen
+                    nachname_start = text.find(nachname, vorname_end)
+                    if nachname_start != -1:
+                        nachname_end = nachname_start + len(nachname)
+                        all_ents.append({
+                            "start": nachname_start, "end": nachname_end, "value": nachname,
+                            "category": "Nachname", "priority": 3
+                        })
+                except IndexError:
+                    # Fallback, falls rsplit fehlschlägt (sollte nicht passieren bei ' ' in ent.text)
+                    all_ents.append({
+                        "start": ent.start_char, "end": ent.end_char, "value": ent.text,
+                        "category": ent.label_, "priority": 5 # Niedrigste Priorität
+                    })
+
+            # Behandle LOC, ORG und einteilige PER-Namen
+            elif ent.label_ in ("LOC", "ORG") or (ent.label_ == "PER" and ' ' not in ent.text):
                 all_ents.append({
                     "start": ent.start_char, "end": ent.end_char, "value": ent.text,
                     "category": ent.label_, "priority": 4
